@@ -53,6 +53,8 @@ end
 ---@param size integer
 ---@return boolean
 local function check_file_size(path, size)
+    size = tonumber(size)
+
     local fsize = lfs.attributes(path, "size")
     if not fsize then
         return false
