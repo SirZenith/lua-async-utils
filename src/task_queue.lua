@@ -17,7 +17,7 @@ function TaskQueue:new(limit)
 end
 
 --[[
-non-blocking push a item into queue, return true if successed, return false if
+non-blocking push an item into queue, return true if successed, return false if
 queue is closed.
 ]]
 function TaskQueue:push(item)

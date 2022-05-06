@@ -162,28 +162,4 @@ function M.dl_url(
     end
 end
 
--- -----------------------------------------------------------------------------
--- URL Operation
-
-function M.rsplit(s, char)
-    local i = #s
-    while i > 1 do
-        if s.sub(s, i, i) == char then
-            break
-        end
-        i = i - 1
-    end
-    i = (i > 1) and i or #s
-
-    return string.sub(s, 1, i - 1), string.sub(s, i + 1, #s)
-end
-
-local function hex_to_char(x)
-    return string.char(tonumber(x, 16))
-end
-
-function M.unescape(url)
-    return url:gsub("%%(%x%x)", hex_to_char)
-end
-
 return M
