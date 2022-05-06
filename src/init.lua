@@ -5,7 +5,11 @@ local luv = require "luv"
 
 local M = {}
 
-function M.main_loop()
+function M.addthread(handler, ...)
+    copas.addthread(handler, ...)
+end
+
+function M.loop()
     copas.running = true
     while not copas.finished() or luv.loop_alive() do
         if not copas.finished() then
