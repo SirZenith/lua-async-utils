@@ -1,5 +1,5 @@
 package = "async-utils"
-version = "0.1.2-1"
+version = "0.2.1-1"
 source = {
     url = "git+https://github.com/SirZenith/lua-async-utils.git",
     tag = version,
@@ -19,6 +19,6 @@ build = {
     modules = {
         ["async-utils"] = "src/init.lua",
         ["async-utils.recorder"] = "src/recorder.lua",
-        ["async-utils.task_queue"] = "src/task_queue.lua"
+        ["async-utils.queue"] = "src/queue.lua"
     }
 }

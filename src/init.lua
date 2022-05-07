@@ -102,6 +102,35 @@ end
 -- -----------------------------------------------------------------------------
 -- Network IO
 
+---@class DlTask
+---@field url string URL to be downloaded.
+---@field path string Output path for downloaded data.
+---@field err_data any used to generate error message when needed.
+local DlTask = {}
+M.DlTask = DlTask
+DlTask.__index = DlTask
+
+---@param url string
+---@param path string
+---@param err_data any
+---@return DlTask
+function DlTask:new(url, path, err_data)
+    local this = setmetatable({}, self)
+
+    this.url = url
+    this.path = path
+    this.err_data = err_data
+
+    return this
+end
+
+-- Generate error message wiht `err_data` and status of http connection. Here is
+-- a dummy implementation, user should asign useful implementation to this field.
+---@param status string|number
+function DlTask:gen_error(status) return "" end ---@diagnostic disable-line: unused-local
+
+-- =============================================================================
+
 ---@param url string
 ---@param path string
 ---@param retry_count integer
@@ -110,7 +139,9 @@ end
 local function check_dl_header(url, path, retry_count)
     retry_count = retry_count or 1
 
-    if not file_exists(path) then
+    if not url then
+        return false, "nil URL"
+    elseif not file_exists(path) then
         return true, nil
     end
 
@@ -137,32 +168,29 @@ local function check_dl_header(url, path, retry_count)
     return false, "file already exists " .. path
 end
 
-function M.dl_url(
-    queue, retry_count, msg_receiver,
-    gen_url, gen_path, gen_error
-)
-    local data
+---@param queue Queue
+---@param retry_count integer
+---@param msg_receiver Recorder
+function M.dl_url(queue, retry_count, msg_receiver)
+    local task
     while not queue:is_closed() do
-        data = queue:pop()
-        -- if queue is closed now
-        if data == nil then break end
+        task = queue:pop() ---@type DlTask
+        if task == nil then break end
 
-        local url = gen_url(data)
-        local out_file = gen_path(data)
-        local can_dl, errmsg = check_dl_header(url, out_file, retry_count)
+        local can_dl, errmsg = check_dl_header(task.url, task.path, retry_count)
         if not can_dl then
             msg_receiver:notify(1, errmsg)
         else
             local content, code
             for _ = 1, retry_count do
-                content, code, _, _ = http.request(url)
+                content, code, _, _ = http.request(task.url)
                 if code == 200 then break end
             end
 
             if code == 200 then
-                M.write_file(out_file, content, msg_receiver)
+                M.write_file(task.path, content, msg_receiver)
             else
-                msg_receiver:notify(1, gen_error(data, code))
+                msg_receiver:notify(1, task:gen_error(code))
             end
         end
     end
