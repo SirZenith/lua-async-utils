@@ -89,7 +89,7 @@ end
 ---@param path string
 ---@param date string
 ---@return boolean
-local function check_file_mod(path, date)
+local function check_file_modtime(path, date)
     local mod_time = parse_date(date)
     local fmod_time = lfs.attributes(path, "modification")
     if not fmod_time then
@@ -162,37 +162,86 @@ local function check_dl_header(url, path, retry_count)
     local size, mod_time = headers["content-length"], headers["last-modified"]
     if not check_file_size(path, size) then
         return true, nil
-    elseif not check_file_mod(path, mod_time) then
+    elseif not check_file_modtime(path, mod_time) then
         return true, nil
     end
     return false, "file already exists " .. path
 end
 
+---@class DlOption
+---@field retry_count integer
+---@field recorder Recorder
+local DlOption = {}
+M.DlOption = DlOption
+DlOption.__index = DlOption
+
+---@param options table<string, any>
+---@return DlOption
+function DlOption:new(options)
+    options = options or {}
+    local this = setmetatable(options, self)
+
+    this.retry_count = this.retry_count or 1
+    this.recorder = this.recorder or nil
+
+    return this
+end
+
+---@param task DlTask Task object for this task.
+function DlOption:preprocess(task) end ---@diagnostic disable-line: unused-local
+
+-- This function get called when download successed, and before data is written
+-- to file. It taks in downloaded data and process it, return modified data.
+-- Returned content will be written to output file. Return `nil` to skip writing.
+---@param content string Downloaded data.
+---@param task DlTask Task object for this task.
+---@return string new_content
+function DlOption:postprocess(content, task) return content end ---@diagnostic disable-line: unused-local
+
+-- =============================================================================
+
+---@param task DlTask
+---@param opt DlOption
+function M.dl_url(task, opt)
+    opt:preprocess(task)
+
+    local can_dl, errmsg = check_dl_header(task.url, task.path, opt.retry_count)
+    if not can_dl then
+        opt.recorder:notify(1, errmsg)
+        return
+    end
+
+    local content, code
+    for _ = 1, opt.retry_count do
+        content, code, _, _ = http.request(task.url)
+        if code == 200 then break end
+    end
+    if code ~= 200 then
+        opt.recorder:notify(1, task:gen_error(code))
+        return
+    end
+
+    content = opt:postprocess(content, task)
+    if not content then
+        opt.recorder:notify(1, "skip writing " .. task.path)
+        return
+    end
+    M.write_file(task.path, content, opt.recorder)
+end
+
 ---@param queue Queue
----@param retry_count integer
----@param msg_receiver Recorder
-function M.dl_url(queue, retry_count, msg_receiver)
+---@param options table<string, any>
+function M.dl_worker(queue, options)
+    options = options or {}
+    local opt = getmetatable(options) ~= DlOption
+        and DlOption:new(options)
+        or options
+
     local task
     while not queue:is_closed() do
         task = queue:pop() ---@type DlTask
         if task == nil then break end
-
-        local can_dl, errmsg = check_dl_header(task.url, task.path, retry_count)
-        if not can_dl then
-            msg_receiver:notify(1, errmsg)
-        else
-            local content, code
-            for _ = 1, retry_count do
-                content, code, _, _ = http.request(task.url)
-                if code == 200 then break end
-            end
-
-            if code == 200 then
-                M.write_file(task.path, content, msg_receiver)
-            else
-                msg_receiver:notify(1, task:gen_error(code))
-            end
-        end
+        M.dl_url(task, opt)
     end
 end
 

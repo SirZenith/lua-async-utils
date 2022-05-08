@@ -1,5 +1,5 @@
 package = "async-utils"
-version = "0.2.1-1"
+version = "0.3.0-1"
 source = {
     url = "git+https://github.com/SirZenith/lua-async-utils.git",
     tag = version,
